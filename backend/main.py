@@ -35,7 +35,7 @@ class ElementInfo(BaseModel):
     and data validation purposes.
     """
 
-    tag: str  #     cat .gitignore    cat .gitignore    cat .gitignore/XML tag name (e.g., 'div', 'span', 'button')
+    tag: str  # HTML tag name (e.g., 'div', 'span', 'button')
     id: str  # unique identifier attribute of the element
     text: str  # the text content or inner HTML of the element
 

@@ -4,8 +4,9 @@ from pydantic import BaseModel # basic class for data validation and serializati
 from google import genai
 from dotenv import load_dotenv # for loading content in .env file safely
 import os
+import google.generativeai as genai
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
 # Retrieve the API key from the environment
@@ -14,15 +15,15 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 # fastAPI application that provides a simple API endpoint for explaining HTML elements
 app = FastAPI() # create instance of FastAPI
 
-# enable CORS so your browser extension can talk to your local server
-# allow server to accept requests from any origin, any HTTTP, and any headers
-app.add_middleware( # adding CORS middleware to the app
+# Enable CORS (so your browser extension can talk to backend)
+app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # in production, replace "*" with specific origins
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Request schema
 class ElementInfo(BaseModel):
     """
     represents information about an HTML/XML element.
@@ -35,9 +36,15 @@ class ElementInfo(BaseModel):
     id: str  # unique identifier attribute of the element
     text: str  # the text content or inner HTML of the element
 
-# define a system prompt
-SYSTEM_PROMPT = "You are a helpful web navigation tutor. Your job is to explain the following element " \
-"to a senior citizen. Do not talk about anything else."
+# System prompt
+SYSTEM_PROMPT = (
+    "You are a helpful web navigation tutor. "
+    "Explain the element in very simple language for a senior citizen. "
+    "Do not talk about anything else."
+)
+
+# Load Gemini model once (not per request)
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 @app.post("/explain")
 async def explain(data: ElementInfo):
@@ -57,4 +64,5 @@ async def explain(data: ElementInfo):
         ai_reply = "I'm sorry, I couldn't generate a response."
 
     print(f"User is asking about: {data.tag} (ID: {data.id})")
+
     return {"reply": ai_reply}

@@ -64,3 +64,4 @@ cython_debug/
 
 # Environment variables (the API key)
 .env.txt
+.env_tushar.txt

@@ -1,21 +1,17 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from google.generativeai import palm
-from dotenv import load_dotenv
+from fastapi import FastAPI # core framework
+from fastapi.middleware.cors import CORSMiddleware # middleware to handle CORS, allows to receive requests from different origins
+from pydantic import BaseModel # basic class for data validation and serialization
+from google import genai
+from dotenv import load_dotenv # for loading content in .env file safely
 import os
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Retrieve the API key from the environment
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
-# Set the API key for the palm library
-palm.configure(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 # fastAPI application that provides a simple API endpoint for explaining HTML elements
-
 app = FastAPI() # create instance of FastAPI
 
 # enable CORS so your browser extension can talk to your local server
@@ -31,7 +27,7 @@ class ElementInfo(BaseModel):
     """
     represents information about an HTML/XML element.
 
-    this model captures essential properties of a DOM element for serialization
+    captures essential properties of a DOM element for serialization
     and data validation purposes.
     """
 
@@ -49,11 +45,9 @@ async def explain(data: ElementInfo):
     content = f"[Rules] {SYSTEM_PROMPT} [User Input] {data.text}"
 
     # call the AI model
-    response = palm.generate_text(
-        model="text-bison-001",  # specify the model name
-        prompt=content,
-        temperature=0.7,  # adjust temperature for creativity
-        max_output_tokens=100  # limit the response length
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=f"{SYSTEM_PROMPT}\n\nUser is looking at a {data.tag} with text: {data.text}"
     )
 
     # Extract the AI's reply

@@ -14,6 +14,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Request schema
 class ElementInfo(BaseModel):
     """
     Validates the incoming data from the browser extension.

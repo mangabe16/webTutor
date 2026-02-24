@@ -49,12 +49,6 @@ async def explain(data: ElementInfo):
         ai_reply = "I'm sorry, I'm having trouble connecting to my local brain right now."
         print(f"Error calling local model: {e}")
 
-<<<<<<< Updated upstream
-    return {"reply": ai_reply}
-
-# To run: uv run uvicorn main:app --reload
-=======
-<<<<<<< Updated upstream
     # Extract the AI's reply
     if response and response.result:
         ai_reply = response.result
@@ -62,7 +56,4 @@ async def explain(data: ElementInfo):
         ai_reply = "I'm sorry, I couldn't generate a response."
 
     print(f"User is asking about: {data.tag} (ID: {data.id})")
-=======
->>>>>>> Stashed changes
     return {"reply": ai_reply}
->>>>>>> Stashed changes

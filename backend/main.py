@@ -13,8 +13,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Request schema
 class ElementInfo(BaseModel):
     """
     Validates the incoming data from the browser extension.
@@ -23,7 +21,7 @@ class ElementInfo(BaseModel):
     id: str
     text: str
 
-# Define the local system prompt
+# local system prompt
 SYSTEM_PROMPT = (
     "You are a helpful web navigation tutor. Your job is to explain the following "
     "element to a senior citizen. Do not talk about anything else."

@@ -6,7 +6,7 @@
 ### To run: 
     - In one terminal run:
         uv run uvicorn backend.main:app --reload
-    This command launches our web server
+    This command launches our web server, and watches for changes, so if source code is changed, no need to reload terminal
     - In another terminal run:
         ollama serve
     This command starts the local server that listens for AI requests at a local host

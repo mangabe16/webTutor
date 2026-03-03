@@ -1,7 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import ollama  
+import ollama
+import logging  # for logging responses to a file
+
+# Configure logging to save to a file
+logging.basicConfig(
+    filename='tutor.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 app = FastAPI() # initialize the FastAPI app
 
@@ -46,4 +54,8 @@ async def explain(data: ElementInfo):
 
     # log the user's query for debugging
     print(f"user is asking about: {data.tag} (ID: {data.id})")
+
+    # append the AI's response to the log file
+    logging.info("AI response: %s", ai_reply)
+
     return {"reply": ai_reply}

@@ -1,9 +1,11 @@
 ## For collaborators
 
 ### Naming convention for branches
+
     - feature/branch-name/name-of-feature
 
-### To run: 
+### To run
+
     - In one terminal run:
         uv run uvicorn backend.main:app --reload
     This command launches our web server, and watches for changes, so if source code is changed, no need to reload terminal

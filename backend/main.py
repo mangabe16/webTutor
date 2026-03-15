@@ -23,8 +23,8 @@ app.add_middleware(
 
 # define the data model for incoming requests
 class ElementInfo(BaseModel):
-    tag: str  # html tag name
-    id: str   # element ID
+    tag: str # html tag name
+    id: str # element ID
     text: str # text content of the element
 
 # system prompt for the AI model

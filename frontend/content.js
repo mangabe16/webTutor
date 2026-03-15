@@ -4,6 +4,9 @@
 
 // Listen for the right-click event
 document.addEventListener('contextmenu', async (event) => {
+    // Cancel any ongoing speech to prevent overlapping
+    window.speechSynthesis.cancel();
+
     // Prevent the default menu from opening so we can use our tutor instead
     event.preventDefault(); 
 
@@ -11,10 +14,18 @@ document.addEventListener('contextmenu', async (event) => {
     const element = document.elementFromPoint(event.clientX, event.clientY);
     
     if (element) {
+        // Extract attributes from the DOM element
+        const attributes = {};
+        for (const attr of element.attributes) {
+            attributes[attr.name] = attr.value;
+        }
+
         const payload = {
             tag: element.tagName.toLowerCase(),
             id: element.id || "no-id",
-            text: element.innerText.slice(0, 100).trim() || "Visual element"
+            text: element.innerText.slice(0, 100).trim() || "Visual element",
+            aria_label: element.getAttribute('aria-label') || element.getAttribute('title'),
+            alt_text: element.getAttribute('alt')
         };
 
         // Send the element data to your local FastAPI server

@@ -1,7 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import ollama
 import logging  # for logging responses to a file
 
 # Configure logging to save to a file
@@ -26,34 +25,45 @@ class ElementInfo(BaseModel):
     tag: str # html tag name
     id: str # element ID
     text: str # text content of the element
+    aria_label: str = None # ARIA label for accessibility
+    alt_text: str = None # Alt-text for images
 
-# system prompt for the AI model
-SYSTEM_PROMPT = (
-    "You are a patient, friendly tutor helping a senior citizen use the internet. "
-    "The user will provide an html tag and text, but you must NOT mention 'html', 'tags', 'IDs', or 'code'. "
-    "Instead, explain what the item DOES. For example, if it's a <button>, tell them 'This is a button you can click to submit your information.' "
-    "Keep your explanation to 2 sentences and use very simple language."
-)
+# Dictionary mapping HTML tags to nouns
+tag_descriptions = {
+    "a": "a link",
+    "button": "a button",
+    "input": "a box",
+    "img": "a picture or an image",
+    "h1": "a main heading",
+    "h2": "a sub-heading",
+    "p": "a paragraph of text",
+    "nav": "a navigation menu",
+    "form": "a form",
+    "span": "a small piece of text"
+}
 
 # define the endpoint to explain html elements
 @app.post("/explain")
 async def explain(data: ElementInfo):
     try:
-        # generate a response using the local AI model
-        response = ollama.generate(
-            model='llama3.2:1b', 
-            system=SYSTEM_PROMPT,
-            prompt=f"Explain this <{data.tag}> element with text: '{data.text}'"
-        )
-        ai_reply = response['response']
-       
-    except (ConnectionError, KeyError, ValueError) as e:
-        # handle errors and provide a fallback reply
-        ai_reply = "I'm sorry, I'm having trouble connecting to my local brain."
-        print(f"local model error: {e}")
+        # Check for ARIA label or Alt-text first
+        if data.aria_label:
+            tag_description = tag_descriptions.get(data.tag, "an element")
+            ai_reply = f"This is {tag_description} described as '{data.aria_label}'."
+        elif data.alt_text:
+            tag_description = tag_descriptions.get(data.tag, "an element")
+            ai_reply = f"This is {tag_description} described as '{data.alt_text}'."
+        else:
+            # Fallback to dictionary mapping
+            tag_description = tag_descriptions.get(data.tag, "an element")
+            ai_reply = f"This is {tag_description}."
+    except Exception as e:
+        # handle errors and raise HTTPException with status code 500
+        logging.error(f"Error: {e}")
+        raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
 
     # log the user's query for debugging
-    print(f"user is asking about: {data.tag} (ID: {data.id})")
+    logging.info(f"User is asking about: {data.tag} (ID: {data.id})")
 
     # append the AI's response to the log file
     logging.info("AI response: %s", ai_reply)

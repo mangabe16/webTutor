@@ -2,8 +2,11 @@
   "manifest_version": 3,
   "name": "Web Tutor Phase 1",
   "version": "1.0",
-  "description": "Explains web elements to seniors.",
+  "description": "Explains web elements to seniors using ARIA and tag analysis.",
   "permissions": ["activeTab", "scripting"],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*"
+  ],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

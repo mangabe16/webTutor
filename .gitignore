@@ -63,4 +63,4 @@ dmypy.json
 cython_debug/
 
 # logs of the responses
-.tutor.log
+tutor.log

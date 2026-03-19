@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 import logging  # for logging responses to a file
 
 # Configure logging to save to a file
@@ -20,13 +21,12 @@ app.add_middleware(
     allow_headers=["*"],  # allow all headers
 )
 
-# define the data model for incoming requests
 class ElementInfo(BaseModel):
     tag: str # html tag name
-    id: str # element ID
+    id: str  # element ID
     text: str # text content of the element
-    aria_label: str = None # ARIA label for accessibility
-    alt_text: str = None # Alt-text for images
+    aria_label: Optional[str] = None # ARIA label for accessibility
+    alt_text: Optional[str] = None # Alt-text for images
 
 # Dictionary mapping HTML tags to nouns
 tag_descriptions = {

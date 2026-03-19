@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
+import clock  # for measuring response time
 import logging  # for logging responses to a file
 
 # Configure logging to save to a file
@@ -45,27 +46,32 @@ tag_descriptions = {
 # define the endpoint to explain html elements
 @app.post("/explain")
 async def explain(data: ElementInfo):
+    clock.start()  # start the clock to measure response time
     try:
         # Check for ARIA label or Alt-text first
         if data.aria_label:
             tag_description = tag_descriptions.get(data.tag, "an element")
-            ai_reply = f"This is {tag_description} described as '{data.aria_label}'."
+            tutor_reply = f"This is {tag_description} described as '{data.aria_label}'."
         elif data.alt_text:
             tag_description = tag_descriptions.get(data.tag, "an element")
-            ai_reply = f"This is {tag_description} described as '{data.alt_text}'."
+            tutor_reply = f"This is {tag_description} described as '{data.alt_text}'."
         else:
             # Fallback to dictionary mapping
             tag_description = tag_descriptions.get(data.tag, "an element")
-            ai_reply = f"This is {tag_description}."
+            tutor_reply = f"This is {tag_description}."
     except Exception as e:
         # handle errors and raise HTTPException with status code 500
         logging.error(f"Error: {e}")
         raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
 
+    clock.stop()  # stop the clock and log the response time
+
     # log the user's query for debugging
     logging.info(f"User is asking about: {data.tag} (ID: {data.id})")
+    logging.info(f"Time required for this response: {clock.elapsed()} seconds")
+
 
     # append the AI's response to the log file
-    logging.info("AI response: %s", ai_reply)
+    logging.info("AI response: %s", tutor_reply)
 
-    return {"reply": ai_reply}
+    return {"reply": tutor_reply}

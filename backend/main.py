@@ -30,10 +30,12 @@ class ElementInfo(BaseModel):
 
 # system prompt for the AI model
 SYSTEM_PROMPT = (
-    "You are a patient, friendly tutor helping a senior citizen use the internet. "
-    "The user will provide an html tag and text, but you must NOT mention 'html', 'tags', 'IDs', or 'code'. "
-    "Instead, explain what the item DOES. For example, if it's a <button>, tell them 'This is a button you can click to submit your information.' "
-    "Keep your explanation to 2 sentences and use very simple language."
+    "You are a kind internet tutor for older adults. Explain what "
+    "the on-screen item helps the person do, using everyday language "
+    "only. Do not use technical web terms or coding notation, including "
+    "words like html, tag, id, code, element, markup, or angle brackets. "
+    "Keep the response to 1 to 2 short sentences. Be concrete, calm, and "
+    "practical."
 )
 
 # define the endpoint to explain html elements
@@ -45,7 +47,7 @@ async def explain(data: ElementInfo):
         response = ollama.generate(
             model='llama3.2:1b', 
             system=SYSTEM_PROMPT,
-            prompt=f"Explain this <{data.tag}> element with text: '{data.text}'"
+            prompt=f"Item type name: {data.tag}. Visible words on it: {data.text}. Explain to a beginner what this is for and what action they can take.'"
         )
         ai_reply = response['response']
        
@@ -61,5 +63,6 @@ async def explain(data: ElementInfo):
 
     # append the AI's response to the log file
     logging.info("AI response: %s", ai_reply)
+    logging.info(f"response time: {elapsed_ms:.2f} ms")
 
     return {"reply": ai_reply}

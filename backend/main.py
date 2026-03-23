@@ -67,7 +67,7 @@ async def explain(data: ElementInfo):
     elapsed_ms = (time.perf_counter() - start) * 1000  # stop the clock and calculate the response time
     # log the user's query for debugging
     logging.info(f"User is asking about: {data.tag} (ID: {data.id})")
-    logging.info(f"Time required for this response: {elapsed_ms} seconds")
+    logging.info(f"Time required for this response: {elapsed_ms:.2f} ms")
 
 
     # append the AI's response to the log file

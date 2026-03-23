@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-import clock  # for measuring response time
+import time  # for measuring response time
 import logging  # for logging responses to a file
 
 # Configure logging to save to a file
@@ -46,7 +46,7 @@ tag_descriptions = {
 # define the endpoint to explain html elements
 @app.post("/explain")
 async def explain(data: ElementInfo):
-    clock.start()  # start the clock to measure response time
+    start = time.perf_counter()  # start the clock to measure response time
     try:
         # Check for ARIA label or Alt-text first
         if data.aria_label:
@@ -64,11 +64,10 @@ async def explain(data: ElementInfo):
         logging.error(f"Error: {e}")
         raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
 
-    clock.stop()  # stop the clock and log the response time
-
+    elapsed_ms = (time.perf_counter() - start) * 1000  # stop the clock and calculate the response time
     # log the user's query for debugging
     logging.info(f"User is asking about: {data.tag} (ID: {data.id})")
-    logging.info(f"Time required for this response: {clock.elapsed()} seconds")
+    logging.info(f"Time required for this response: {elapsed_ms} seconds")
 
 
     # append the AI's response to the log file

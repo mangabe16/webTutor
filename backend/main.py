@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import ollama
-import clock  # for timestamping logs
+import time  # for timestamping logs
 import logging  # for logging responses to a file
 
 # Configure logging to save to a file
@@ -39,7 +39,7 @@ SYSTEM_PROMPT = (
 # define the endpoint to explain html elements
 @app.post("/explain")
 async def explain(data: ElementInfo):
-    clock.start()  # start the clock to measure response time
+    start = time.perf_counter()  # start the clock to measure response time
     try:
         # generate a response using the local AI model
         response = ollama.generate(
@@ -54,10 +54,10 @@ async def explain(data: ElementInfo):
         ai_reply = "I'm sorry, I'm having trouble connecting to my local brain."
         print(f"local model error: {e}")
 
-    clock.stop()  # stop the clock and calculate the response time
+    elapsed_ms = (time.perf_counter() - start) * 1000  # stop the clock and calculate the response time
     # log the user's query for debugging
     print(f"user is asking about: {data.tag} (ID: {data.id})")
-    print(f"response time: {clock.get_time()} ms")
+    print(f"response time: {elapsed_ms:.2f} ms")
 
     # append the AI's response to the log file
     logging.info("AI response: %s", ai_reply)

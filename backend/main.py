@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import ollama
 import time  # for timestamping logs
 import logging  # for logging responses to a file
+from typing import Optional
 
 # Configure logging to save to a file
 logging.basicConfig(
@@ -22,29 +23,47 @@ app.add_middleware(
     allow_headers=["*"],  # allow all headers
 )
 
+
 # define the data model for incoming requests
 class ElementInfo(BaseModel):
-    tag: str # html tag name
-    id: str # element ID
-    text: str # text content of the element
+    tag: str
+    id: str
+    text: str
+    aria_label: Optional[str] = ""
+    alt_text: Optional[str] = ""
+    site_name: str
+    parent_text: str
 
-# system prompt for the AI model
-SYSTEM_PROMPT = (
-    "You are a kind internet tutor for older adults. The user is on {site_name}. "
-    "They clicked a {tag} with the text '{text}'. The surrounding text on the page is "
-    "'{parent_text}'. Explain the purpose of this element in one to two simple sentences"
-)
+# define the system prompt template
+SYSTEM_PROMPT = """You are a simple voice assistant for seniors. 
+Your goal is to explain what a specific button or link DOES on the current website, not what the HTML tag is.
+RULES:
+1. NEVER mention technical terms like 'HTML', 'span', 'tag', or 'element'.
+2. Use ONLY 1 short sentence.
+3. If the site is {site_name}, explain the action in the context of that site.
+Context: Site: {site_name}, Text: {text}, Surrounding: {parent_text}. 
+"""
 
-# define the endpoint to explain html elements
 @app.post("/explain")
 async def explain(data: ElementInfo):
-    start = time.perf_counter()  # start the clock to measure response time
+    start = time.perf_counter()  # start the clock
+    # Fill the template with the actual data from the request
+    filled_system_prompt = SYSTEM_PROMPT.format(
+        site_name=data.site_name,
+        tag=data.tag,
+        text=data.text,
+        parent_text=data.parent_text
+    )
+
     try:
-        # generate a response using the local AI model
         response = ollama.generate(
             model='llama3.2:1b', 
-            system=SYSTEM_PROMPT,
-            prompt=f"Item type name: {data.tag}. Visible words on it: {data.text}. Explain to a beginner what this is for and what action they can take.'"
+            system=filled_system_prompt,
+            prompt="In 15 words or less, what happens if I click this?",
+            options={
+                "temperature": 0.3, # Lower temperature makes it less "talkative" and more focused
+                "num_predict": 50    # Hard limit on how many words it can generate
+            }
         )
         ai_reply = response['response']
        

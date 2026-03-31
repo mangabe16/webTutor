@@ -30,12 +30,9 @@ class ElementInfo(BaseModel):
 
 # system prompt for the AI model
 SYSTEM_PROMPT = (
-    "You are a kind internet tutor for older adults. Explain what "
-    "the on-screen item helps the person do, using everyday language "
-    "only. Do not use technical web terms or coding notation, including "
-    "words like html, tag, id, code, element, markup, or angle brackets. "
-    "Keep the response to 1 to 2 short sentences. Be concrete, calm, and "
-    "practical."
+    "You are a kind internet tutor for older adults. The user is on {site_name}. "
+    "They clicked a {tag} with the text '{text}'. The surrounding text on the page is "
+    "'{parent_text}'. Explain the purpose of this element in one to two simple sentences"
 )
 
 # define the endpoint to explain html elements

@@ -64,4 +64,11 @@ cython_debug/
 
 # Environment variables (the API key)
 .env.txt
-.env_tushar.txt
+.env_tushar.txtbackend/kokoro-v1.0.onnx
+backend/voices-v1.0.bin
+backend/test.wav
+tutor.log
+__pycache__/
+*.pyc
+.venv/
+seniorsem-env/

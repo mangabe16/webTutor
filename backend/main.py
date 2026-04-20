@@ -67,7 +67,7 @@ async def explain(data: ElementInfo):
         )
         ai_reply = response['response']
        
-    except (ConnectionError, KeyError, ValueError) as e:
+    except (ConnectionError, TimeoutError, KeyError, ValueError) as e:
         # handle errors and provide a fallback reply
         ai_reply = "I'm sorry, I'm having trouble connecting to my local brain."
         print(f"local model error: {e}")

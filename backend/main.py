@@ -1,6 +1,19 @@
+"""Web Tutor FastAPI backend — explains webpage elements to senior citizens."""
+
+import re
+import io
+import base64
+import time
+import numpy as np
+import soundfile as sf
+from kokoro_onnx import Kokoro
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from ollama import AsyncClient
+
+app = FastAPI()
+
 from typing import Optional
 import time  # for measuring response time
 import logging  # for logging responses to a file
@@ -21,6 +34,14 @@ app.add_middleware(
     allow_methods=["*"],  # allow all HTTP methods
     allow_headers=["*"],  # allow all headers
 )
+
+print("[WebTutor] Loading Kokoro voice model...")
+kokoro = Kokoro("kokoro-v1.0.onnx", "voices-v1.0.bin")
+print("[WebTutor] Kokoro ready!")
+
+class Message(BaseModel):
+    role: str
+    content: str
 
 class ElementInfo(BaseModel):
     tag: str # html tag name

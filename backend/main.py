@@ -1,97 +1,77 @@
-"""Web Tutor FastAPI backend — explains webpage elements to senior citizens."""
-
-import re
-import io
-import base64
-import time
-import numpy as np
-import soundfile as sf
-from kokoro_onnx import Kokoro
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from ollama import AsyncClient
+from typing import Optional, List
+import logging
+import ollama
+import base64
+import io
+import scipy.io.wavfile as wavfile
+from kokoro_onnx import Kokoro
+
+# Configure logging
+logging.basicConfig(filename='tutor.log', level=logging.INFO, format='%(asctime)s - %(message)s')
 
 app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-from typing import Optional
-import time  # for measuring response time
-import logging  # for logging responses to a file
-
-# Configure logging to save to a file
-logging.basicConfig(
-    filename='tutor.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-
-app = FastAPI() # initialize the FastAPI app
-
-# add middleware to handle CORS (cross-origin resource sharing)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # allow requests from any origin
-    allow_methods=["*"],  # allow all HTTP methods
-    allow_headers=["*"],  # allow all headers
-)
-
-print("[WebTutor] Loading Kokoro voice model...")
+# Load Voice Model
 kokoro = Kokoro("kokoro-v1.0.onnx", "voices-v1.0.bin")
-print("[WebTutor] Kokoro ready!")
 
 class Message(BaseModel):
     role: str
     content: str
 
 class ElementInfo(BaseModel):
-    tag: str # html tag name
-    id: str  # element ID
-    text: str # text content of the element
-    aria_label: Optional[str] = None # ARIA label for accessibility
-    alt_text: Optional[str] = None # Alt-text for images
+    tag: str
+    id: str
+    text: str
+    aria_label: Optional[str] = ""
+    site_name: str = "Unknown"
+    parent_text: str = ""
+    mode: str = "rule-based" 
+    voice_query: Optional[str] = ""
+    history: List[Message] = []
 
-# Dictionary mapping HTML tags to nouns
-tag_descriptions = {
-    "a": "a link",
-    "button": "a button",
-    "input": "a box",
-    "img": "a picture or an image",
-    "h1": "a main heading",
-    "h2": "a sub-heading",
-    "p": "a paragraph of text",
-    "nav": "a navigation menu",
-    "form": "a form",
-    "span": "a small piece of text"
-}
+tag_descriptions = {"a": "a link", "button": "a button", "img": "an image"}
 
-# define the endpoint to explain html elements
 @app.post("/explain")
 async def explain(data: ElementInfo):
-    start = time.perf_counter()  # start the clock to measure response time
+    # 1. Determine the Text Reply
+    if data.mode == "rule-based":
+        base = tag_descriptions.get(data.tag, "an element")
+        reply = f"This is {base}."
+        if data.aria_label: 
+            reply += f" It's labeled '{data.aria_label}'."
+    else: # if LLM mode was chosen
+        try:
+            # Use the voice_query if it exists, otherwise use a default prompt
+            user_task = data.voice_query if data.voice_query else "Explain this item."
+            
+            response = ollama.generate(
+                model='llama3.2:1b',
+                system=f"You are a helpful web tutor for seniors on {data.site_name}. Be extremely brief (1 sentence).",
+                prompt=f"User asked: '{user_task}'. Element: <{data.tag}>. Text: '{data.text}'. Context: '{data.parent_text}'"
+            )
+            reply = response['response'].strip()
+        except Exception as e:
+            logging.error(f"Ollama Error: {e}")
+            reply = "My AI brain is offline. This is a " + tag_descriptions.get(data.tag, "item")
+
+    # 2. Generate Kokoro Audio
     try:
-        # Check for ARIA label or Alt-text first
-        if data.aria_label:
-            tag_description = tag_descriptions.get(data.tag, "an element")
-            tutor_reply = f"This is {tag_description} described as '{data.aria_label}'."
-        elif data.alt_text:
-            tag_description = tag_descriptions.get(data.tag, "an element")
-            tutor_reply = f"This is {tag_description} described as '{data.alt_text}'."
-        else:
-            # Fallback to dictionary mapping
-            tag_description = tag_descriptions.get(data.tag, "an element")
-            tutor_reply = f"This is {tag_description}."
+        # Generate raw audio samples
+        samples, sample_rate = kokoro.create(reply, voice="af_bella", speed=1.0, lang="en-us")
+        
+        # Convert NumPy array to WAV in memory
+        buffered = io.BytesIO()
+        wavfile.write(buffered, sample_rate, samples)
+        
+        # Encode to Base64 string for the Chrome Extension
+        audio_b64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
     except Exception as e:
-        # handle errors and raise HTTPException with status code 500
-        logging.error(f"Error: {e}")
-        raise HTTPException(status_code=500, detail="An error occurred while processing your request.")
+        logging.error(f"TTS Error: {e}")
+        audio_b64 = None
 
-    elapsed_ms = (time.perf_counter() - start) * 1000  # stop the clock and calculate the response time
-    # log the user's query for debugging
-    logging.info(f"User is asking about: {data.tag} (ID: {data.id})")
-    logging.info(f"Time required for this response: {elapsed_ms:.2f} ms")
-
-
-    # append the AI's response to the log file
-    logging.info("AI response: %s", tutor_reply)
-
-    return {"reply": tutor_reply}
+    logging.info(f"Mode: {data.mode} | Reply: {reply}")
+    return {"reply": reply, "audio": audio_b64}

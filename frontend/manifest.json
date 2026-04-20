@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Web Tutor — Voice Input",
   "version": "2.0",
-  "description": "Hover over any element, press Alt+Shift+V, ask a question, and hear the answer.",
+  "description": "Right-click any page element for an instant explanation, or hover and press ` to ask by voice and hear the reply.",
   "permissions": [
     "activeTab",
     "scripting"

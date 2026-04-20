@@ -1,58 +1,106 @@
-// script to add functionality to a webpage
-// the script listens for the contextmenu event (whenever a user right-clicks on the page)
-// when event is triggred, the default menu is disabled
+// webTutor Hybrid Content Script (Hardcoded Mode)
+const APP_MODE = "llm"; // Change to "rule-based" to switch logic
 
-// Listen for the right-click event
+let hoveredEl = null;
+let activeEl = null;
+let isListening = false;
+let recognition = null;
+let conversationHistory = [];
+
+// ─── Helper: Unified Payload Builder ──────────────────────────────────────────
+function buildPayload(el, question = "") {
+    return {
+        tag: el.tagName.toLowerCase(),
+        id: el.id || "no-id",
+        text: (el.innerText || el.value || "").trim().slice(0, 300),
+        aria_label: el.getAttribute('aria-label') || el.getAttribute('title') || "",
+        alt_text: el.getAttribute('alt') || "",
+        site_name: window.location.hostname,
+        parent_text: el.parentElement ? el.parentElement.innerText.slice(0, 500).trim() : "",
+        mode: APP_MODE, 
+        voice_query: question,
+        history: conversationHistory
+    };
+}
+
+// ─── Right-Click Logic ───────────────────────────────────────────────────────
 document.addEventListener('contextmenu', async (event) => {
-    // Cancel any ongoing speech to prevent overlapping
-    window.speechSynthesis.cancel();
-
-    // Prevent the default menu from opening so we can use our tutor instead
     event.preventDefault(); 
-
-    // Find the element exactly under the mouse pointer
     const element = document.elementFromPoint(event.clientX, event.clientY);
     
     if (element) {
-        // Extract attributes from the DOM element
-        const attributes = {};
-        for (const attr of element.attributes) {
-            attributes[attr.name] = attr.value;
-        }
-
-        const payload = {
-            tag: element.tagName.toLowerCase(),
-            id: element.id || "no-id",
-            text: element.innerText.slice(0, 100).trim() || "Visual element",
-            aria_label: element.getAttribute('aria-label') || element.getAttribute('title'),
-            alt_text: element.getAttribute('alt')
-        };
-
-        // Send the element data to your local FastAPI server
-        try {
-            const response = await fetch('http://127.0.0.1:8000/explain', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            const result = await response.json();
-            
-            // Trigger the computer's voice to speak the AI's explanation
-            const speech = new SpeechSynthesisUtterance(result.reply);
-            window.speechSynthesis.speak(speech);
-        } catch (error) {
-            console.error("The tutor backend is not running!", error);
-        }
+        const payload = buildPayload(element, "Explain this item.");
+        await sendToBackend(element, payload);
     }
 });
-// ============================================================
-// Branch: feature/voice-input
-// Feature: Hover an element, ask via voice, get a spoken reply
-// ============================================================
+
+// ─── Voice Logic (Backtick Key) ──────────────────────────────────────────────
+document.addEventListener("keydown", (e) => {
+    if (e.key !== "`") return;
+    if (!hoveredEl) return showToast("Hover over an element first!");
+    
+    if (!recognition) recognition = buildRecognition();
+    recognition.start();
+});
+
+function buildRecognition() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const rec = new SR();
+    rec.onstart = () => {
+        isListening = true;
+        activeEl = hoveredEl;
+        activeEl.classList.add("wt-listening");
+        showToast("🎤 Listening...");
+    };
+    rec.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        const payload = buildPayload(activeEl, transcript);
+        sendToBackend(activeEl, payload);
+    };
+    rec.onend = () => {
+        isListening = false;
+        if (activeEl) activeEl.classList.remove("wt-listening");
+    };
+    return rec;
+}
+
+// ─── Backend Communication ──────────────────────────────────────────────────
+async function sendToBackend(el, payload) {
+    try {
+        const res = await fetch("http://localhost:8000/explain", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        
+        if (payload.mode === "llm") {
+            conversationHistory.push({ role: "user", content: payload.voice_query });
+            conversationHistory.push({ role: "assistant", content: data.reply });
+        }
+
+        // speak() handles Kokoro audio or browser TTS fallback
+        speak(data.audio, data.reply);
+
+    } catch (err) {
+        console.error("Fetch Error:", err);
+        showToast("❌ Server unreachable. Ensure main.py is running!");
+    }
+}
+
+// ─── Hover Tracking ─────────────────────────────────────────────────────────
+document.addEventListener("mouseover", (e) => {
+    if (isListening) return;
+    if (hoveredEl) hoveredEl.classList.remove("wt-hovered");
+    hoveredEl = e.target;
+    hoveredEl.classList.add("wt-hovered");
+});
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-
+/**
+ * Injects the necessary CSS for hover effects and toast notifications.
+ */
 function injectStyles() {
   if (document.getElementById("wt-styles")) return;
 
@@ -102,10 +150,12 @@ function injectStyles() {
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
-
 let toastEl = null;
 let toastTimer = null;
 
+/**
+ * Displays a brief message at the bottom of the screen.
+ */
 function showToast(msg, durationMs = 3000) {
   if (!toastEl) {
     toastEl = document.createElement("div");
@@ -118,200 +168,41 @@ function showToast(msg, durationMs = 3000) {
   toastTimer = setTimeout(() => toastEl.classList.remove("visible"), durationMs);
 }
 
-// ─── State ────────────────────────────────────────────────────────────────────
-
-let hoveredEl   = null;
-let activeEl    = null;
-let isListening = false;
-let recognition = null;
-
-// Conversation history — persists for the whole session
-let conversationHistory = [];
-
-function clearClasses(el) {
-  if (el) el.classList.remove("wt-hovered", "wt-listening", "wt-speaking");
-}
-
-// ─── Hover tracking ───────────────────────────────────────────────────────────
-
-document.addEventListener("mouseover", (e) => {
-  const el = e.target;
-  if (el.id === "wt-toast") return;
-  if (hoveredEl && hoveredEl !== el) clearClasses(hoveredEl);
-  hoveredEl = el;
-  if (!isListening) el.classList.add("wt-hovered");
-});
-
-document.addEventListener("mouseout", (e) => {
-  if (!isListening && e.target === hoveredEl) clearClasses(hoveredEl);
-});
-
 // ─── Text-to-Speech ───────────────────────────────────────────────────────────
+/**
+ * Plays Kokoro-generated audio or falls back to Browser SpeechSynthesis.
+ */
+async function speak(audioBase64, fallbackText, onDone = () => {}) {
+  // 1. Try to play Kokoro audio from backend
+  if (audioBase64) {
+    try {
+      const binary = atob(audioBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
-async function speak(audioBase64, fallbackText, onDone) {
-  if (!audioBase64) {
-    window.speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(fallbackText);
-    utt.rate = 0.9;
-    utt.pitch = 1.0;
-    utt.volume = 1.0;
-    utt.onend = onDone;
-    window.speechSynthesis.speak(utt);
-    return;
-  }
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") await audioCtx.resume();
 
-  try {
-    const binary = atob(audioBase64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-    // Resume in case browser suspended it
-    if (audioCtx.state === "suspended") await audioCtx.resume();
-
-    const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer);
-    const source = audioCtx.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(audioCtx.destination);
-    source.onended = onDone;
-    source.start();
-  } catch (err) {
-    console.error("Kokoro audio error →", err);
-    // Fall back to browser TTS
-    window.speechSynthesis.cancel();
-    const utt = new SpeechSynthesisUtterance(fallbackText);
-    utt.rate = 0.9;
-    utt.onend = onDone;
-    window.speechSynthesis.speak(utt);
-  }
-}
-
-// ─── Speech Recognition ───────────────────────────────────────────────────────
-
-function buildRecognition() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return null;
-
-  const rec = new SR();
-  rec.lang            = "en-US";
-  rec.continuous      = false;
-  rec.interimResults  = false;
-  rec.maxAlternatives = 1;
-
-  rec.onstart = () => {
-    isListening = true;
-    activeEl = hoveredEl;
-    if (activeEl) {
-      clearClasses(activeEl);
-      activeEl.classList.add("wt-listening");
+      const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer);
+      const source = audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioCtx.destination);
+      source.onended = onDone;
+      source.start();
+      return; // Success
+    } catch (err) {
+      console.error("Kokoro audio playback failed:", err);
     }
-    showToast("🎤 Listening… ask your question", 8000);
-  };
+  }
 
-  rec.onresult = (event) => {
-    const transcript = event.results[0][0].transcript.trim();
-    showToast(`You asked: "${transcript}"`, 4000);
-    askAboutElement(activeEl, transcript);
-  };
-
-  rec.onerror = (e) => {
-    if (e.error === "no-speech") return;
-    console.error("Web Tutor mic error →", e.error);
-    showToast("Couldn't hear you — try again", 3000);
-    resetState();
-  };
-
-  rec.onend = () => {
-    isListening = false;
-  };
-
-  return rec;
+  // 2. Fallback to browser's built-in TTS
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(fallbackText);
+  utt.rate = 0.9; // Slightly slower for clarity
+  utt.pitch = 1.0;
+  utt.onend = onDone;
+  window.speechSynthesis.speak(utt);
 }
 
-// ─── Keyboard shortcut: backtick ─────────────────────────────────────────────
-
-document.addEventListener("keydown", (e) => {
-  if (e.key !== "`") return;
-
-  if (isListening) {
-    recognition?.stop();
-    resetState();
-    showToast("Mic closed", 1500);
-    return;
-  }
-
-  if (!hoveredEl) {
-    showToast("Hover over something first, then press the key", 3000);
-    return;
-  }
-
-  if (!recognition) recognition = buildRecognition();
-
-  if (!recognition) {
-    showToast("Your browser doesn't support voice input", 3000);
-    return;
-  }
-
-  recognition.start();
-});
-
-// ─── Send to backend ─────────────────────────────────────────────────────────
-
-async function askAboutElement(el, question) {
-  if (!el) return;
-
-  const payload = {
-    tag:         el.tagName.toLowerCase(),
-    id:          el.id || "no-id",
-    text:        (el.innerText || el.value || "").trim().slice(0, 300),
-    aria_label:  el.getAttribute("aria-label") || "",
-    aria_role:   el.getAttribute("role")        || "",
-    voice_query: question,
-    history:     conversationHistory,
-  };
-
-  showToast("⏳ Thinking…", 10000);
-
-  try {
-    const res = await fetch("http://localhost:8000/explain", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(payload),
-    });
-
-    const data  = await res.json();
-    const reply = data.reply || "I'm not sure about that.";
-
-    // Save exchange to conversation history
-    conversationHistory.push({ role: "user",      content: question });
-    conversationHistory.push({ role: "assistant", content: reply    });
-
-    if (activeEl) {
-      clearClasses(activeEl);
-      activeEl.classList.add("wt-speaking");
-    }
-
-    showToast("🔊 Speaking…", (reply.split(" ").length / 2.5) * 1000);
-    speak(data.audio, reply, resetState);
-
-  } catch (err) {
-    console.error("Web Tutor fetch error →", err);
-    showToast("❌ Server not reachable — is it running?", 4000);
-    speak(null, "I'm sorry, I couldn't reach my brain. Please make sure the server is running.", resetState);
-  }
-}
-
-// ─── Reset state ─────────────────────────────────────────────────────────────
-
-function resetState() {
-  isListening = false;
-  clearClasses(activeEl);
-  activeEl = null;
-  if (hoveredEl) hoveredEl.classList.add("wt-hovered");
-}
-
-// ─── Boot ─────────────────────────────────────────────────────────────────────
-
+// Call style injection on boot
 injectStyles();
-console.log("Web Tutor loaded ✅ | Hover anything → press ` → ask a question");

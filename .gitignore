@@ -72,3 +72,6 @@ __pycache__/
 *.pyc
 .venv/
 seniorsem-env/
+
+*.onnx
+*.bin

@@ -35,6 +35,16 @@ class ElementInfo(BaseModel):
 
 tag_descriptions = {"a": "a link", "button": "a button", "img": "an image"}
 
+# System prompt template for LLM mode
+SYSTEM_PROMPT = """You are a simple voice assistant for seniors.
+Your goal is to explain what a specific button or link DOES on the current website, not what the HTML tag is.
+RULES:
+1. NEVER mention technical terms like 'HTML', 'span', 'tag', or 'element'.
+2. Use ONLY 1 short sentence.
+3. If the site is {site_name}, explain the action in the context of that site.
+Context: Site: {site_name}, Text: {text}, Surrounding: {parent_text}.
+"""
+
 @app.post("/explain")
 async def explain(data: ElementInfo):
     # 1. Determine the Text Reply
@@ -47,10 +57,15 @@ async def explain(data: ElementInfo):
         try:
             # Use the voice_query if it exists, otherwise use a default prompt
             user_task = data.voice_query if data.voice_query else "Explain this item."
+            system_prompt = SYSTEM_PROMPT.format(
+                site_name=data.site_name,
+                text=data.text,
+                parent_text=data.parent_text,
+            )
             
             response = ollama.generate(
                 model='llama3.2:1b',
-                system=f"You are a helpful web tutor for seniors on {data.site_name}. Be extremely brief (1 sentence).",
+                system=system_prompt,
                 prompt=f"User asked: '{user_task}'. Element: <{data.tag}>. Text: '{data.text}'. Context: '{data.parent_text}'"
             )
             reply = response['response'].strip()

@@ -1,5 +1,5 @@
 // webTutor Hybrid Content Script (Hardcoded Mode)
-const APP_MODE = "llm"; // Change to "rule-based" to switch logic
+const APP_MODE = "rule-based"; // Change to "rule-based" to switch logic
 
 let hoveredEl = null;
 let activeEl = null;

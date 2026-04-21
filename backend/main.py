@@ -33,7 +33,19 @@ class ElementInfo(BaseModel):
     voice_query: Optional[str] = ""
     history: List[Message] = []
 
-tag_descriptions = {"a": "a link", "button": "a button", "img": "an image"}
+# Dictionary mapping HTML tags to nouns
+tag_descriptions = {
+    "a": "a link",
+    "button": "a button",
+    "input": "a box",
+    "img": "a picture or an image",
+    "h1": "a main heading",
+    "h2": "a sub-heading",
+    "p": "a paragraph of text",
+    "nav": "a navigation menu",
+    "form": "a form",
+    "span": "a small piece of text"
+}
 
 # System prompt template for LLM mode
 SYSTEM_PROMPT = """You are a simple voice assistant for seniors.

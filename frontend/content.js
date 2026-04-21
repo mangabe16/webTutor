@@ -8,15 +8,52 @@ let recognition = null;
 let conversationHistory = [];
 
 // ─── Helper: Unified Payload Builder ──────────────────────────────────────────
+/**
+ * Gathers deep context from the DOM to send to the backend.
+ */
 function buildPayload(el, question = "") {
+    // Logic to find the semantic container for context
+    const parent = el.parentElement;
+    const container = el.closest('section, article, main, nav, aside, div, ul, ol, form') || parent || el;
+
+    // Helper to clean and slice text safely
+    const getTextSnippet = (node) => {
+        if (!node) return '';
+        const raw = (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim();
+        return raw.slice(0, 220);
+    };
+
+    // Extract siblings/children context ("Family Members")
+    const familyMembers = Array.from(container.children)
+        .slice(0, 8)
+        .map((child) => ({
+            tag: child.tagName.toLowerCase(),
+            id: child.id || 'no-id',
+            text: getTextSnippet(child) || 'Visual element',
+            aria_label: child.getAttribute('aria-label') || child.getAttribute('title') || null,
+            alt_text: child.getAttribute('alt') || null
+        }));
+
     return {
+        // Basic Element Info
         tag: el.tagName.toLowerCase(),
         id: el.id || "no-id",
-        text: (el.innerText || el.value || "").trim().slice(0, 300),
+        text: getTextSnippet(el) || "Visual element",
         aria_label: el.getAttribute('aria-label') || el.getAttribute('title') || "",
         alt_text: el.getAttribute('alt') || "",
-        site_name: window.location.hostname,
-        parent_text: el.parentElement ? el.parentElement.innerText.slice(0, 500).trim() : "",
+        
+        // Website & URL Context
+        page_url: window.location.href,
+        site_name: document.title || window.location.hostname,
+        
+        // Deep Structural Context
+        parent_tag: parent ? parent.tagName.toLowerCase() : null,
+        parent_text: getTextSnippet(parent) || "",
+        container_tag: container ? container.tagName.toLowerCase() : null,
+        container_text: getTextSnippet(container) || "",
+        family_members: familyMembers,
+
+        // App State
         mode: APP_MODE, 
         voice_query: question,
         history: conversationHistory
@@ -25,10 +62,15 @@ function buildPayload(el, question = "") {
 
 // ─── Right-Click Logic ───────────────────────────────────────────────────────
 document.addEventListener('contextmenu', async (event) => {
+    // Cancel any ongoing speech to prevent overlapping
+    window.speechSynthesis.cancel();
+    
+    // Prevent the default menu from opening
     event.preventDefault(); 
     const element = document.elementFromPoint(event.clientX, event.clientY);
     
     if (element) {
+        showToast(`Requesting ${APP_MODE} explanation...`);
         const payload = buildPayload(element, "Explain this item.");
         await sendToBackend(element, payload);
     }
@@ -39,6 +81,9 @@ document.addEventListener("keydown", (e) => {
     if (e.key !== "`") return;
     if (!hoveredEl) return showToast("Hover over an element first!");
     
+    // Cancel speech when starting a new voice command
+    window.speechSynthesis.cancel();
+
     if (!recognition) recognition = buildRecognition();
     recognition.start();
 });
@@ -76,7 +121,7 @@ async function sendToBackend(el, payload) {
         const data = await res.json();
         
         if (payload.mode === "llm") {
-            conversationHistory.push({ role: "user", content: payload.voice_query });
+            conversationHistory.push({ role: "user", content: payload.voice_query || "Right-click request" });
             conversationHistory.push({ role: "assistant", content: data.reply });
         }
 
@@ -98,9 +143,6 @@ document.addEventListener("mouseover", (e) => {
 });
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-/**
- * Injects the necessary CSS for hover effects and toast notifications.
- */
 function injectStyles() {
   if (document.getElementById("wt-styles")) return;
 
@@ -121,11 +163,6 @@ function injectStyles() {
       outline-offset: 2px !important;
       border-radius: 3px !important;
       animation: wt-pulse 1s ease-in-out infinite !important;
-    }
-    .wt-speaking {
-      outline: 3px solid rgba(34, 197, 94, 0.85) !important;
-      outline-offset: 3px !important;
-      border-radius: 3px !important;
     }
     #wt-toast {
       position: fixed;
@@ -153,9 +190,6 @@ function injectStyles() {
 let toastEl = null;
 let toastTimer = null;
 
-/**
- * Displays a brief message at the bottom of the screen.
- */
 function showToast(msg, durationMs = 3000) {
   if (!toastEl) {
     toastEl = document.createElement("div");
@@ -169,11 +203,7 @@ function showToast(msg, durationMs = 3000) {
 }
 
 // ─── Text-to-Speech ───────────────────────────────────────────────────────────
-/**
- * Plays Kokoro-generated audio or falls back to Browser SpeechSynthesis.
- */
 async function speak(audioBase64, fallbackText, onDone = () => {}) {
-  // 1. Try to play Kokoro audio from backend
   if (audioBase64) {
     try {
       const binary = atob(audioBase64);
@@ -189,20 +219,19 @@ async function speak(audioBase64, fallbackText, onDone = () => {}) {
       source.connect(audioCtx.destination);
       source.onended = onDone;
       source.start();
-      return; // Success
+      return; 
     } catch (err) {
       console.error("Kokoro audio playback failed:", err);
     }
   }
 
-  // 2. Fallback to browser's built-in TTS
   window.speechSynthesis.cancel();
   const utt = new SpeechSynthesisUtterance(fallbackText);
-  utt.rate = 0.9; // Slightly slower for clarity
+  utt.rate = 0.9;
   utt.pitch = 1.0;
   utt.onend = onDone;
   window.speechSynthesis.speak(utt);
 }
 
-// Call style injection on boot
+// Boot
 injectStyles();
